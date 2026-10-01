@@ -1,0 +1,8 @@
+# VGGT pack direct deps: Python 3.11, CUDA GPU host, git, ~6 GB free (5.03 GB weights + venv). Transitives recorded post-install in outputs/run_environment.json.
+torch==2.3.1
+torchvision==0.18.1
+numpy==1.26.1
+Pillow==10.4.0
+huggingface_hub==0.25.2
+einops==0.8.0
+safetensors==0.4.5

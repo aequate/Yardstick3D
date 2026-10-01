@@ -1,0 +1,144 @@
+# Prospective metric-grounding contract v4 (FROZEN — do not alter after GT inspection)
+# Dataset: UrbanNav-HK Medium-Urban-1 (TST 2021-05-17). Claim 0.
+# Frozen 2026-09-12 BEFORE any download/GT inspection.
+# Reason for v4 (not a rerun; NO outcome exists; NO reference position opened):
+# v3 specified the cue as RINEX-obs + RTKLIB-SPP post-processing. Sidecar inspection
+# (filenames + sentence counts + cue-side quality stats ONLY, no reference opened)
+# showed (i) no broadcast-NAV file ships in the sidecar (extra SatRef/IGS ephemeris
+# fetch required), and (ii) the sidecar ships the receiver's OWN real-time solution
+# (ublox.f9p.nmea: 658 GNGGA, quality 2x638/1x20, 0x RTK-fixed, 12 sats median).
+# The NMEA GGA receiver solution is the deployment-faithful weak cue (weaker than
+# post-processed SPP, no ephemeris dependency, same hardware-independence argument:
+# standalone ublox vs SPAN-CPT+IE). v4 switches the cue source obs+RTKLIB -> NMEA GGA.
+# All windows/backbone/solver/endpoints/gates identical to v3. RTKLIB retained as
+# unexecuted fallback only. Further change requires v5 + reason.
+
+name: prospective_metric_grounding_v4
+status: frozen_pre_outcome
+supersedes: prospective_metric_grounding_v3
+supersede_reason: "v3 cue (RINEX+RTKLIB SPP) replaced pre-outcome by receiver real-time NMEA GGA (no NAV ships in sidecar; GGA weaker + deployment-faithful + ephemeris-free); no reference opened, no outcome exists"
+dataset:
+  name: UrbanNav-HK-Medium-Urban-1
+  paper_doi: 10.33012/navi.602
+  repo: https://github.com/IPNL-POLYU/UrbanNavDataset
+  release: "TST 2021-05-17 sensors bag + GNSS/IMU/GT sidecars (NOT pilot bags; pilots lack HW sync per issue #55)"
+  license: "open GitHub research use; no top-level LICENSE file — re-verify before any redistribution; no commercial use"
+  access: Dropbox-direct-resumable
+data_sources:
+  bag: "UrbanNav-HK_TST-20210517_sensors.bag (33.7 GB documented; 35244535470 B observed via Content-Range)"
+  bag_direct: "Dropbox scl/fi/yujo3q09xaj9c5lxmi8kt (rlkey q2x03glthp4m5ed1ay6uo0t5m), resumable via Range"
+  gnss_sidecar: "RINEX obs/nav per receiver (u-blox ZED-F9P x2, EVK-M8T) + SatRef base data"
+  ground_truth: "UrbanNav_TST_GT_raw.txt (SPAN-CPT + Inertial Explorer, 1 Hz) + in-bag /novatel_data/inspvax"
+sequences:
+  development_validation: "Medium-Urban-1 windows at elapsed [90, 180] s (adapter/sync/pipeline validation ONLY; reference may be opened to validate ENU/interp code; NO threshold tuning, NO reselection)"
+  prospective_test: "Medium-Urban-1 windows at elapsed [270, 360, 450, 540, 630] s (5 windows; reference POSITIONS withheld until one-time scoring; quality/time_reference topics inspectable in Stage 1)"
+  note: "Single-drive split (same site/session) is weaker than cross-site transfer — disclosed; window starts pre-registered, no outcome-based change"
+camera_stream:
+  topics: [/zed2/camera/left/image_raw, /zed2/camera/right/image_raw]
+  primary_eye: left
+  rate_hz: 15
+  note: "ZED2 stereo; manufacturer ROS driver; arrival timestamps (software-sync limitation disclosed). Primary uses LEFT eye only (monocular 3DFM test); right reserved, never fused."
+metric_cue:
+  name: ublox_f9p_nmea_gga_displacement
+  file: UrbanNav-HK-Medium-Urban-1.ublox.f9p.nmea
+  file_sha256: "recorded in dataset manifest at execution (sidecar zip hashed pre-outcome)"
+  sentences_used: [GNGGA]
+  sentences_aux: [GNRMC]
+  sources_allowed: ["ublox ZED-F9P receiver real-time solution (NMEA GNGGA/GNRMC) ONLY"]
+  sources_forbidden: ["SPAN-CPT raw", "inspvax", "GT-raw", "IE-smoothed products", "base-station corrections", "RTK-fixed qualities (4/5) if ever present"]
+  processing: "parse GNGGA (UTC tod + lat/lon dm + MSL alt + quality + nsat) + GNRMC date for day rollover; lat_dm->deg; NO smoothing; NO base corrections; NO SPAN/IE inputs"
+  quality_gate: "GGA fix quality in {1 (standalone), 2 (DGPS)}; nsat >= 4; HDOP recorded (characterization only, never a weight). Epochs failing gate are MISSING (dropped, never interpolated across)."
+  rate_hz: 1
+  observed_cue_stats: "658 GGA over full drive (~0.84 Hz effective); quality 2x638/1x20/RTK-fixed 0x; nsat median 12 min 12 (cue-side sensor metadata, pre-outcome)"
+  frame: WGS84-latlonalt-to-window-local-ENU (same geodesy as v2/v3, no GT fit)
+  preprocessing:
+    - "GGA lat/lon/MSL-alt -> ECEF -> local ENU about window origin (standard WGS84; MSL-vs-ellipsoid offset common-mode, absorbed in origin)"
+    - "per-frame-interval cue length b_k = polyline sum of gated ENU fixes in (t_k, t_{k+1}] with endpoint linear interpolation"
+    - "visual chord a_k = ||P_{k+1} - P_k|| from frozen DA3 prediction"
+    - "constraint: PathDisplacementConstraint-equivalent s*a_k ~= b_k (same as ADVIO/v2/v3)"
+    - "units: metres, seconds"
+  variance_model: "uniform (var=1.0) primary naive/LS; Huber-robust secondary. GGA HDOP/GST NOT used as calibration."
+timestamp_synchronization:
+  clock_domain: "GPS time via Chrony+GPSd NMEA+PPS (EVK-M8T) disciplining ROS computer; gps2utc (-18 s leap + 315964800 epoch); cue+GT stamped GPS time; camera arrival timestamps"
+  mechanism: "documented software discipline + /time_reference residual topic; NO fitted offset; NO cross-correlation; NO visual alignment"
+  matching:
+    max_dt_match_camera_cue_s: 0.15
+    max_dt_match_camera_ref_s: 0.6
+    policy: "nearest-sample within tolerance; endpoint linear interpolation for cue polyline; coverage rule below; /time_reference residuals RECORDED in manifest (characterization, never a fitted correction)"
+  verification_topics: [/time_reference]
+  verification_rule: "Stage 1 (sensor-only): record /time_reference offset stats + match fractions BEFORE opening GT positions. Abort/revise via v4 on systematic exceedance (implementation bug), never by fitting."
+coordinate_transforms:
+  cue_enu: "window-local ENU about first cue fix (WGS84)"
+  reference_enu: "SAME window-local ENU origin as cue (shared origin)"
+  visual_frame: "DA3 relative camera-centers; Umeyama SE(3)/Sim(3) evaluation exactly as ADVIO/v2"
+  extrinsics_note: "extrinsic.yaml + zed2_intrinsics.yaml per sequence; antenna-camera lever arm (~m) << window path (~100s m); absorbed in oracle floor, disclosed"
+frame_sampling:
+  window_duration_s: 16
+  frames_per_window: 8
+  frame_selection: "uniform linspace over [t_start, t_start+16] rounded to nearest LEFT-image timestamps"
+  window_starts_elapsed_s: [90, 180, 270, 360, 450, 540, 630]
+  start_reference: "elapsed seconds from FIRST left-image timestamp in bag"
+  validation_windows: 2
+  test_windows: 5
+backbone:
+  primary: da3-base
+  hub: depth-anything/DA3-BASE
+  from_pretrained_required: true
+  is_metric: false
+  process_res: 378
+  process_res_method: upper_bound_resize
+  ref_view_strategy: middle
+  device: cuda
+solver:
+  implementation: weakmetric3d.optimization.grounder.MetricGrounder
+  solvers_scored: [none, naive, ls, robust]
+  primary_solver: naive
+  robust_loss: {kernel: huber, huber_delta: 1.345, max_iters: 25, reject_z: 6.0, min_obs: 1}
+  code_frozen: true
+valid_missing_sensor_handling:
+  cue_coverage_required: 0.8
+  ref_coverage_required: 0.8
+  ref_quality_gate: "documented SPAN-CPT/IE fixed-converged indicator from inspvax/GT-raw status fields; exact decoding recorded in Stage-1 manifest (quality metadata, NOT positions); windows below gate excluded pre-scoring, NOT replaced"
+  missing_cue_action: "drop interval; window valid iff >=80% of 7 intervals covered"
+  missing_ref_action: "window excluded (recorded missing, NOT replaced)"
+  nan_scale_action: "report NaN, count as failure, no substitution"
+evaluation_metrics:
+  - raw_ate_se3
+  - grounded_ate_se3_naive_primary
+  - grounded_ate_se3_ls
+  - grounded_ate_se3_robust
+  - oracle_ate_optimal
+  - oracle_scale_ate_optimal
+  - raw_ate_sim3_diagnostic_only
+  - estimated_scale_s_hat
+  - cue_supported_scale_s_cue
+  - cue_reference_discrepancy_Lg_over_Lt
+  - three_limits_factors
+  - estimator_departure_s_hat_over_s_cue
+  - path_vs_optimal_gap
+  - scale_error_log_and_rel
+  alignment: "Umeyama SE(3) primary; Sim(3) diagnostic only"
+primary_endpoint: "Median naive-grounded SE(3) ATE vs median raw SE(3) ATE over 5 frozen test windows (withheld reference, one-time scoring). Context: oracle floors, leverage, three-limits factors. Success = substantial reduction when oracle admits correction; shape-limited windows = characterization."
+secondary_endpoints:
+  - "per-window raw/grounded/oracle/scales + three-limits identity"
+  - "robust vs naive comparison"
+  - "cue/ref discrepancy Lg/Lt distribution"
+  - "validation-window adapter/sync table (NOT a claim)"
+  - "sensor-bound instantiation attempt (expected UNINSTANTIATED)"
+exclusion_rules:
+  - "sensor-only exclusions pre-scoring: missing images, cue coverage <80%, ref quality/coverage below gate, /time_reference systematic exceedance (via v4)"
+  - "FORBIDDEN: exclusion by GT performance, oracle value, post-score residuals, manual removal, window replacement"
+failure_policy:
+  - "solver NaN/inf: failure counted, no replacement"
+  - "bag/sidecar unreadable: document blocker (both v2+v3 blockers => legitimate failure with exact evidence)"
+  - "DA3 inference failure: record error, no rescue via cue/GT peeking"
+  - "NMEA-GGA cue parse/quality failure: document; NO substitution of reference-derived cue (that would be repackaging)"
+integrity:
+  gt_in_inference: false
+  reference_derived_offsets: false
+  sequence_replacement_by_outcome: false
+  manual_window_removal_after_gt: false
+  hidden_scale_normalization: false
+  cue_reference_topic_isolation: true
+  leakage_check: "assert_no_gt_in_constraints + source-allowlist test + withheld-position two-stage protocol"
+contract_immutability: "SHA256 recorded in artifacts/experiment_registry.json. No edits after test GT positions opened. Bug => v4 + reason."

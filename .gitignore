@@ -1,0 +1,31 @@
+# environments
+.venv/
+.venv-da3/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.pytest_tmp*/
+.ruff_cache/
+.mypy_cache/
+
+# data and generated outputs
+data/
+artifacts/
+*.tar
+*.zip
+*.bag
+*.pt
+*.safetensors
+
+# vggt_runner run-time products
+vggt_runner/runtime/
+vggt_runner/outputs/
+
+# OS
+.DS_Store
+Thumbs.db

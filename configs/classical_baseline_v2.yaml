@@ -1,0 +1,114 @@
+# Classical baseline v2 — FROZEN protocol (2026-09-12).
+# One strong classical method (COLMAP incremental SfM) vs DA3-BASE / DA3-LARGE / VGGT-1B
+# on the same 37 frozen ADVIO-20/21 windows, same cue, same solver, same evaluator.
+# DO NOT TUNE PER WINDOW. Any change requires a new protocol version + re-registration.
+
+protocol_id: classical_baseline_v2
+frozen_utc: "2026-09-12"
+claim_level: 0
+
+method:
+  name: COLMAP incremental Structure-from-Motion
+  implementation: pycolmap
+  implementation_version: 4.2.0            # pip wheel pycolmap-4.2.0-cp311-cp311-win_amd64
+  bundled_colmap: "COLMAP 4.2.0"
+  mode: monocular_only
+  metric_input: none
+  inertial_input: none
+  gnss_input: none                         # GPS enters ONLY via WeakMetric3D grounding cue
+  learned_weights: none                    # SIFT + RANSAC + bundle adjustment only
+
+reproducibility:
+  cpu_only: true
+  num_threads: 1                           # single-threaded everywhere (determinism)
+  mapper_random_seed: 0                    # frozen; rerun bit-identical (verified 0.0 diff)
+  retries_per_window: 0                    # single run; failures recorded, never retried
+  headline_seed: 0
+  sensitivity_seeds_expA: [1, 2]           # Exp-A only: same config, seed swapped (no cherry-pick; headline stays seed 0)
+
+inputs_allowlist:                          # NOTHING else may enter the frontend
+  - artifacts/vggt_pack/<seq>/<win>/f00..f07.png   # Exp A (frozen, portrait 720x1280, bit-identical to mov frames)
+  - data/advio/advio-<20|21>/iphone/frames.mov     # Exp B (raw video, inference channel)
+  - data/advio/advio-<20|21>/iphone/frames.csv     # Exp B (frame timestamps, inference channel)
+inputs_denylist:                           # evaluation-only channels; must never enter frontend or calibration
+  - ground-truth/pose.csv
+  - ground-truth/fixpoints.csv
+  - iphone/arkit.csv
+  - pixel/arcore.csv
+  - tango/
+  - imu_files
+
+camera:
+  mode: SINGLE                             # one shared camera per window reconstruction
+  model: auto                              # COLMAP default for no-EXIF images (observed SIMPLE_RADIAL)
+  calibration: self                        # standard self-calibration with BA refinement ON
+  external_calibration: none               # no ARKit/GT-derived intrinsics (avoids calibration leak)
+  image_geometry: portrait_native          # 720 (W) x 1280 (H); NO resize/crop (corrects v1 landscape-squash bug)
+
+feature_extraction:
+  descriptor: SIFT (pycolmap default SiftExtractionOptions, unmodified)
+  use_gpu: false
+  num_threads: 1
+  camera_mode: SINGLE
+
+matching:
+  expA:
+    algorithm: match_exhaustive
+    options: pycolmap defaults, unmodified except {use_gpu: false, num_threads: 1}
+  expB:
+    algorithm: match_sequential
+    overlap: 10                            # SequentialPairingOptions default, frozen explicitly
+    options: pycolmap defaults, unmodified except {use_gpu: false, num_threads: 1}
+
+mapping:
+  options: IncrementalPipelineOptions defaults, unmodified except {random_seed: 0, num_threads: 1}
+  ba_refinement: defaults (focal length + principal point + extra params refined)
+  model_selection: max num_reg_images, tie-break max num_points3D
+  max_models_kept: default (multiple_models)
+
+experiments:
+  expA_matched_sparse:
+    description: Same exact 8 frozen frames as the 3DFMs (input-matched; COLMAP-native regime).
+    images: 8 frozen PNGs per window, native portrait resolution
+    timestamps: frozen window.json timestamps (bit-identical to DA3/VGGT bundles)
+  expB_fullrate:
+    description: Classical frontend receives the temporal density it expects (same 16 s interval).
+    frame_source: frames.mov decoded with cv2.VideoCapture, raw portrait pixels, no enhancement
+    sampling: every 12th mov frame (~5 fps @ 60 fps) within [video_idx[0], video_idx[7]] UNION the 8 frozen video_idx, deduplicated, sorted
+    validation: mov-decoded frozen-idx frames must be pixel-identical to frozen PNGs (else HALT)
+    query_timestamps: same 8 frozen timestamps (poses read from registered frozen-idx images)
+    cue_interval: same physical 16 s sensor information as Exp A / 3DFMs
+
+output_canonicalization:
+  convention: OpenCV world-to-camera 3x4 (COLMAP cam_from_world: x_cam = R x_world + t)
+  centers: C = -R^T t
+  K_per_frame: estimated shared-camera calibration_matrix tiled to (8,3,3)
+  depth: none (optional; absent)
+  bundle: PredictionBundle(timestamps=<8 frozen>, T_w2c=<8,3,4>, K=<8,3,3>, is_metric=false, model_id="colmap-4.2.0/<exp>")
+  persistence: weakmetric3d.io.prediction_cache.save_prediction (same npz schema as 3DFM budgets)
+
+failure_definition:
+  success_iff: chosen model registers ALL 8 query frames with finite poses
+  record_on_failure: [n_registered, n_points3D, n_models, error_stage]
+  stages: [extract, match, map, pose_gather]
+  partial_registration: failure (no subset evaluation; reported openly in tables)
+
+grounding_and_evaluation:                  # IDENTICAL to 3DFM path; no classical-specific solver
+  cue_builder: weakmetric3d.datasets.advio_cues.constraints_from_corelocation_displacement
+  solvers: weakmetric3d.experiments.advio_real.run_solvers   # naive (B0) + robust, unchanged
+  evaluator: weakmetric3d.experiments.advio_real.evaluate_grounding
+  gt_use: evaluation-only ATE/oracle reporting (never inside solver)
+
+metrics:
+  availability: [n_attempted, n_success, success_rate, n_registered_histogram]
+  geometry: [raw_ate_se3, oracle_ate_optimal, sim3_ate, trajectory_completeness]
+  grounding: [b0_ate_se3, robust_ate_se3, cue_supported_scale, oracle_scale, scale_relative_error]
+  reporting: [conditional_on_success, unconditional_success_rate, matched_all_succeed_subset]
+
+measurement_budget:
+  reuse: scripts/measurement_budget_v2.run_cell + aggregate UNMODIFIED (backbone labels COLMAP-A / COLMAP-B)
+  grid: 7 budgets x 4 strategies x seeds 0-4 (docs/MEASUREMENT_BUDGET_PROTOCOL.md)
+  matched_indices: same (n_full, k, seed) draws as 3DFM runs (cue depends only on shared timestamps)
+  scope: matched windows where classical succeeds (conditional) + all-succeed subset
+
+nondeterminism_statement: single-thread + seed 0 verified bit-identical on smoke window; seed-sensitivity substudy (seeds 1,2, Exp A) quantifies outcome-distribution spread; headline never re-seeded.

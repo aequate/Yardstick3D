@@ -1,0 +1,132 @@
+# Prospective metric-grounding contract v2 (FROZEN — do not alter after GT inspection)
+# Dataset: MARS-LVIG. Claim 0. Frozen 2026-09-12 BEFORE any download/GT inspection.
+# Any real implementation bug fix requires versioned v3 + documented reason before rerun.
+
+name: prospective_metric_grounding_v2
+status: frozen_pre_outcome
+dataset:
+  name: MARS-LVIG
+  paper_doi: 10.1177/02783649241227968
+  site: https://mars.hku.hk/dataset.html
+  release: "2024-IJRR + GNSS/evening update (23 sequences as listed 2026-09-12)"
+  license: CC-BY-NC-SA-4.0-academic-only
+  access: Google-Drive-rosbags
+sequences:
+  development_calibration: HKairport_GNSS01
+  development_note: "790 s, 3 m/s, 80 m, aero-model airfield, no degeneration. Adapter/sync/pipeline validation ONLY. Reference positions may be inspected ONLY to validate adapter geometry (interpolation, ENU conversion); NO threshold tuning, NO window reselection based on GT performance."
+  prospective_test:
+    - HKisland_GNSS01
+  prospective_note: "772 s, 3 m/s, 90 m, island, no degeneration. Reference POSITIONS withheld until one-time scoring. Quality/time-sync topics may be inspected in Stage 1 (sensor-only)."
+  rejected: [AMvalley01, AMvalley02, AMvalley03, Featureless_GNSS01, Featureless_GNSS02, Featureless_GNSS03]
+  rejected_reason: "authors flag camera/LiDAR degeneration; excluded from primary"
+camera_stream:
+  topic: /camera/image_raw
+  message_type: sensor_msgs/CompressedImage
+  rate_hz: 10
+  shutter: global
+  facing: downward
+  note: "Hikvision CA-050 RGB. Decode via cv2; no lidar use."
+metric_cue:
+  name: ublox_standalone_displacement
+  topics_allowed: [/ublox_driver/receiver_lla, /ublox_driver/receiver_pvt]
+  topics_forbidden: [/dji_osdk_ros/rtk_position, /dji_osdk_ros/rtk_velocity, /dji_osdk_ros/rtk_yaw]
+  message_types: [sensor_msgs/NavSatFix, gnss_comm/GnssPVTSolnMsg]
+  rate_hz: 10
+  frame: WGS84-latlonalt-to-local-ENU
+  enu_origin: "per-window first cue fix (window-local tangent plane, WGS84 ellipsoid); origin recorded per window"
+  preprocessing:
+    - "NavSatFix lat/lon/alt -> ECEF -> local ENU about window origin (standard geodesy, no GT fit)"
+    - "per-frame-interval cue length b_k = polyline sum of 10 Hz ENU fixes strictly inside (t_k, t_{k+1}] with endpoint linear interpolation"
+    - "visual chord a_k = ||P_{k+1} - P_k|| from frozen DA3 prediction"
+    - "constraint: PathDisplacementConstraint-equivalent s*a_k ~= b_k (same semantics as ADVIO cue)"
+    - "subsample policy: use ALL 10 Hz fixes in interval (no outcome-dependent thinning)"
+    - "units: metres, seconds"
+  variance_model: "uniform (var=1.0) for primary naive/LS; Huber-robust secondary. No hacc-like weighting (no calibrated per-fix sigma claimed)."
+timestamp_synchronization:
+  clock_domain: "UTC(GPS) hardware: DJI-RTK PPS+GPRMC -> ATmega 1 Hz/10 Hz triggers; Livox driver GPRMC+cloud combination; camera 10 Hz pulse + GPRMC; ublox UTC-synced (IJRR 3.3 + sync page)"
+  mechanism: "a-priori hardware triggers; NO fitted offset; NO cross-correlation; NO visual alignment"
+  matching:
+    max_dt_match_camera_cue_s: 0.06
+    max_dt_match_camera_ref_s: 0.15
+    policy: "nearest-sample within tolerance; endpoint linear interpolation for cue polyline; windows violating coverage (section valid/missing) excluded pre-scoring"
+  verification_topics: [/ublox_driver/time_pulse_info, /dji_osdk_ros/time_sync_fc_time_utc, /dji_osdk_ros/time_sync_gps_utc, /dji_osdk_ros/time_sync_nmea_msg, /dji_osdk_ros/time_sync_pps_source]
+  verification_rule: "Stage 1 (sensor-only): record time_pulse/time_sync residuals + match-fraction stats in sync manifest BEFORE opening rtk_position values. Abort/revise via v3 if residuals exceed 2x max_dt_match systematically (implementation bug), never by fitting offsets to GT."
+coordinate_transforms:
+  cue_enu: "window-local ENU (E=x, N=y, U=z) about first cue fix; standard WGS84"
+  reference_enu: "SAME window-local ENU origin as cue (shared origin => cue/ref comparable without extra alignment beyond evaluation Umeyama)"
+  visual_frame: "DA3 camera-centers in arbitrary similarity gauge (relative backbone); evaluation aligns via Umeyama SE(3)/Sim(3) exactly as ADVIO"
+  extrinsics_note: "CAD externals (RTK/LiDAR/camera offsets ~dm) NOT applied to trajectory comparison (antenna vs camera lever arm << 16 s-window path 48 m; residual absorbed in oracle floor, disclosed). L1 map cross-check uses dataset calibration if invoked."
+frame_sampling:
+  window_duration_s: 16
+  window_stride_s: 120
+  window_starts_elapsed_s: [120, 240, 360, 480, 600]
+  start_reference: "elapsed seconds from FIRST image timestamp in bag (t_bag0 + offset); avoids hover/takeoff (~first 60-120 s)"
+  frames_per_window: 8
+  frame_selection: "uniform linspace over [t_start, t_start+16] rounded to nearest image timestamps (same rule as ADVIO select_frame_indices)"
+  n_windows_dev: 5
+  n_windows_test: 5
+  total_windows: 10
+window_policy: "duration=stride? NO: duration 16 s, stride 120 s (sparse prospective grid, no overlap). Adjacent windows sequence-dependent (same site); report per-sequence summaries, no window-IID inference."
+backbone:
+  primary: da3-base
+  hub: depth-anything/DA3-BASE
+  from_pretrained_required: true
+  is_metric: false
+  process_res: 378
+  process_res_method: upper_bound_resize
+  ref_view_strategy: middle
+  device: cuda
+  note: "Established backbone (ADVIO 72-window characterization + VGGT cross-family replication). Single clean DA3 result preferred over blocked multi-backbone. VGGT later ONLY via immutable off-box pack under separate versioned contract."
+solver:
+  implementation: weakmetric3d.optimization.grounder.MetricGrounder
+  solvers_scored: [none, naive, ls, robust]
+  primary_solver: naive
+  primary_note: "frozen ADVIO B0 = norm-ratio naive_scale_ratio (||b||/||a|| with sign(dot)); prospective reports same binary (no median-of-ratios relabeling)"
+  robust_loss: {kernel: huber, huber_delta: 1.345, max_iters: 25, reject_z: 6.0, min_obs: 1}
+  code_frozen: true
+valid_missing_sensor_handling:
+  cue_coverage_required: 0.8
+  ref_fix_required: 0.8
+  ref_fix_flag: "documented DJI fixed indicator from rtk_info_position/connection_status + OSDK docs; exact decoding recorded in sync manifest Stage 1 (quality metadata, NOT positions)"
+  missing_cue_action: "drop interval (constraint absent); window valid iff >=80% of 7 intervals have cue coverage within max_dt_match"
+  missing_ref_action: "window excluded from scoring (recorded as missing, NOT replaced)"
+  nan_scale_action: "report NaN, count as failure, no substitution"
+evaluation_metrics:
+  - raw_ate_se3
+  - grounded_ate_se3_naive_primary
+  - grounded_ate_se3_ls
+  - grounded_ate_se3_robust
+  - oracle_ate_optimal
+  - oracle_scale_ate_optimal
+  - raw_ate_sim3_diagnostic_only
+  - estimated_scale_s_hat
+  - cue_supported_scale_s_cue
+  - cue_reference_discrepancy_Lg_over_Lt
+  - three_limits_factors
+  - estimator_departure_s_hat_over_s_cue
+  - path_vs_optimal_gap
+  - scale_error_log_and_rel
+  alignment: "Umeyama SE(3) primary (with_scale=False per s); Sim(3) diagnostic only; never report Sim(3) as metric error"
+primary_endpoint: "Median naive-grounded SE(3) ATE vs median raw SE(3) ATE over 5 frozen HKisland_GNSS01 windows (withheld reference, one-time scoring). Context: oracle floors, leverage, three-limits factors. Success = substantial reduction when oracle admits correction; shape-limited windows reported as characterization, not failure of sync."
+secondary_endpoints:
+  - "per-window raw/grounded/oracle/scales (recompute three-limits identity)"
+  - "robust vs naive comparison (outlier sensitivity)"
+  - "cue/ref discrepancy Lg/Lt distribution (source fidelity)"
+  - "dev-sequence (HKairport_GNSS01) adapter/sync validation table (NOT a claim)"
+  - "sensor-bound instantiation attempt (expected UNINSTANTIATED; record evidence)"
+exclusion_rules:
+  - "sensor-only exclusions pre-scoring: missing images, cue coverage <80%, ref fix <80%, time_sync residual systematic exceedance (via v3)"
+  - "FORBIDDEN: exclusion by GT performance, oracle value, residual size after seeing scores, manual window removal, sequence replacement"
+failure_policy:
+  - "solver NaN/inf: failure counted, no replacement window"
+  - "bag unreadable/topic absent: document blocker, promote UrbanNav backup ONLY via versioned v3 contract (never silently substitute)"
+  - "DA3 inference failure: record per-window error, no cue/GT peeking to rescue"
+integrity:
+  gt_in_inference: false
+  reference_derived_offsets: false
+  sequence_replacement_by_outcome: false
+  manual_window_removal_after_gt: false
+  hidden_scale_normalization: false
+  cue_reference_topic_isolation: true
+  leakage_check: "assert_no_gt_in_constraints + topic-allowlist test + withheld-position two-stage protocol"
+contract_immutability: "SHA256 hash recorded in artifacts/experiment_registry.json. No edits after test GT positions opened. Bug => v3 + reason."

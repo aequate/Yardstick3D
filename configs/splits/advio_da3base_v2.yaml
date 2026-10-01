@@ -1,0 +1,26 @@
+# Frozen 2026-09-08 BEFORE downloading extra sequences or seeing their GT/errors.
+# Indoor ADVIO 01–19 excluded a priori (paper venue: indoor; GNSS not the study cue).
+# Remaining official outdoor ids: 20–23.
+
+name: advio_da3base_v2
+windows: configs/splits/advio_windows_v1.yaml
+backbone: da3-base
+cue: corelocation_displacement
+imu_allowed: false
+development:
+  - advio-20
+heldout:
+  - advio-21
+  - advio-22
+  - advio-23
+inclusion_rule: >
+  Include an outdoor sequence if Zenodo zip downloads, packed size < 400 MiB,
+  platform-locations has lat/lon that vary, and generate_windows yields >= 1
+  GPS-qualified 16 s window. Do not include/exclude using GT ATE.
+exclusion_rule: >
+  ADVIO 01–19 indoor (office/mall) excluded before download. Do not add them
+  after seeing outdoor errors.
+notes:
+  - advio-21 already on disk; 22 and 23 to be fetched from Zenodo 1476931
+  - solver, window duration/stride, min_gps_path_m frozen
+  - GT never used to accept windows

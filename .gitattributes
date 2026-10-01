@@ -1,0 +1,2 @@
+# Frozen contracts are SHA-256 pinned: keep their bytes exact on every OS
+configs/** -text

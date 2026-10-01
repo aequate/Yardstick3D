@@ -1,0 +1,28 @@
+# Frozen 2026-09-08. GT-independent ADVIO window generation.
+# Same rule for development (advio-20) and held-out (advio-21).
+# Do not cherry-pick using GT. Do not inspect held-out GT to accept/reject windows.
+
+name: advio_windows_v1
+split: configs/splits/advio_v1.yaml
+development: advio-20
+heldout: advio-21
+t_origin_s: 0.0
+duration_s: 16.0
+stride_s: 16.0
+n_frames: 8
+min_gps_path_m: 10.0
+gps_max_extrap_s: 1.0
+require_gps_span: true
+stride_justification: >
+  Non-overlapping 16 s windows (stride = duration). Overlap at 8 s would
+  double-count adjacent clips in later multi-window stats. GPS polyline on
+  outdoor 01/02 is already >= 10 m on every full 16 s bin, so overlap is
+  not needed to obtain candidates.
+notes:
+  - windows are [k * stride, k * stride + duration] for integer k >= 0 with t1 <= last frame timestamp
+  - n_frames linspace among frames with timestamps in [t0, t1] (0-based indices into InferenceChannels.frame_timestamps)
+  - GPS coverage: CoreLocation samples spanning the window; endpoint interpolation allowed up to gps_max_extrap_s (same contract as corelocation_interval_distance)
+  - GPS polyline displacement (ENU endpoint-interp) >= min_gps_path_m; inference-only, not GT
+  - skip windows failing GPS span, displacement, or n_frames
+  - IMU never loaded; GT never used for acceptance
+  - held-out advio-21 uses this exact rule

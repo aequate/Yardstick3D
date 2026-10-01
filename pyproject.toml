@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yardstick3d"
+version = "0.1.0"
+description = "Metric scale for 3D foundation-model reconstructions from cheap GNSS displacements"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "numpy>=1.26,<2.3",
+  "scipy>=1.11",
+  "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+pipeline = ["rosbags>=0.10", "opencv-python-headless>=4.8"]
+classical = ["pycolmap>=0.6", "opencv-python-headless>=4.8"]
+dev = ["pytest>=8.0", "rosbags>=0.10", "opencv-python-headless>=4.8", "pycolmap>=0.6"]
+torch = ["torch>=2.3"]
+
+[project.scripts]
+yardstick3d = "yardstick3d.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["yardstick3d*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+  "slow: longer synthetic sweeps",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

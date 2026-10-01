@@ -1,0 +1,298 @@
+# ============================================================================
+# DRAFT — NOT FROZEN.  Prospective cross-backbone contract v2 (MARS-LVIG).
+# This file has NO sha256 in artifacts/experiment_registry.json and has no
+# evidential force. Freezing procedure (in order):
+#   1. Choose the sequence by the selection rule below (access only; no bag bytes read).
+#   2. Resolve every item under `open_decisions`, then delete that block.
+#   3. Rename to configs/prospective_cross_backbone_v2.yaml, set status: frozen_pre_data,
+#      record its sha256 in artifacts/experiment_registry.json.
+#   4. Only THEN download the bag and read anything beyond the bag index/connection
+#      headers (topic list, msg types, counts). Cue values, image payloads,
+#      time_sync values and reference values are all post-freeze.
+# Modeled on configs/prospective_cross_backbone_v1.yaml (sha d78159e6…6330).
+# v1 failed Claim 1 (docs/CLAIM_LEVEL_1_CROSS_BACKBONE_ADJUDICATION.md): the u-blox
+# header stamps were GPST (+18 s) and were not converted, and the constant-speed test windows could
+# not detect this. Every change from v1 is listed under `changes_from_v1`.
+# ============================================================================
+
+name: prospective_cross_backbone_v2
+status: DRAFT_NOT_FROZEN
+supersedes: prospective_cross_backbone_v1
+supersede_reason: "v1 Claim 1 FAIL (gate 1: cue in GPST, unconverted; gate 12: NO). v2 is a NEW pre-registered experiment on a NEW, never-downloaded sequence; it is not a replay of HKairport_GNSS01."
+changes_from_v1:
+  - "A: cue (and any other GPST topic) converted GPST->UTC with the published constant via weakmetric3d.datasets.timescale (GPST_MINUS_UTC_S = 18.0); never fitted"
+  - "B: new Stage-1 timescale gate (per-topic header-vs-record classification, require_common_timescale; STOP otherwise)"
+  - "C: GT-free, cue-only, speed-variation window selection with a +/-18 s timing-sensitivity requirement (replaces fixed elapsed starts)"
+  - "D: explicit validation/test split rule; optional constant-cruise controls (secondary)"
+  - "E: RTK-fixed gating and 0.15 s camera-reference match APPLIED at scoring (were declared but not applied in v1)"
+  - "F: time_sync / time_pulse topics DECODED at Stage 1 (never decoded in v1); fail closed"
+  - "G: sequence selected by a stated access-only rule (placeholder until the access probe resolves)"
+  - "H: nominal-speed-prior baseline added as a secondary endpoint (tests whether the cue carries more than 'cruise speed x duration')"
+
+dataset:
+  name: MARS-LVIG
+  paper_doi: 10.1177/02783649241227968
+  site: https://mars.hku.hk/dataset.html
+  license: CC-BY-NC-SA-4.0-academic-only
+  access: Google-Drive-rosbag
+  drive_folder_id: 1aG21le4QZl9LhSLE1O0vuVDQ8YgAwdas
+  sequence: "<PLACEHOLDER — set by sequence_selection.rule before freeze>"
+  bag_filename: "<PLACEHOLDER>"
+  bag_drive_id: "<PLACEHOLDER>"
+  bag_bytes_documented: "<PLACEHOLDER — from confirm page / completed download Content-Length>"
+  bag_sha256: "recorded in Stage-0 manifest immediately after download, before any message is deserialized"
+  excluded_sequences:
+    HKairport_GNSS01: "v1 sequence; exposed. Any rescoring is a labeled post-hoc diagnostic with zero Claim-1 weight."
+    Featureless_GNSS01-03: "authors flag camera/LiDAR degeneration; not in current Drive folder"
+    AMvalley01-03: "authors flag camera/LiDAR degeneration"
+    non_GNSS_sequences: "HKairport01-03, HKisland01-03, AMtown01-03: no documented u-blox weak cue"
+    Evening_sequences: "HKairport_GNSS_Evening, HKisland_GNSS_Evening: no current Drive id (site ids 404)"
+
+sequence_selection:
+  evidence: docs/V2_SEQUENCE_ACCESS_PROBE.md
+  basis: "access + dataset-table metadata ONLY; no bag byte, cue value, image or reference read"
+  eligibility:
+    - "MARS-LVIG *_GNSS sequence (documented u-blox receiver) not in excluded_sequences"
+    - "listed in the current Drive folder with a valid confirm page"
+    - "no camera/LiDAR degeneration flag in the dataset table"
+    - "fits local storage with the v1 bag retained"
+  rank_order:   # fixed a priori by (1) new site != v1 airfield, (2) higher cruise speed => more hover/turn speed contrast, but <= 6 m/s preferred for frame overlap, (3) smaller bag
+    - HKisland_GNSS02   # 1UDcZgElsNepsJXgE9Wx1djHrLNiNwqyP, 11G, 465 s, 6 m/s, 90 m
+    - HKisland_GNSS03   # 136xN27vdpUe88NugHhPKArZBveiYD3hj, 9.4G, 390 s, 9 m/s
+    - HKisland_GNSS01   # 1YG22xjU6q-AECsizsrshgfgq0lUWDe7j, 20110103618 B, 772 s, 3 m/s
+    - HKairport_GNSS02  # 1OVFhhpkFReSy7j1AYIYQG4rbWL_ZRP-3, 11G, same site as v1
+    - HKairport_GNSS03  # 1ORuC3xyi7yonIzD8mTmKDWRU0T6snu9n, 9.1G, same site as v1
+  rule: "The executing sequence is the highest-ranked eligible sequence whose full bag downloads and passes Stage-0 integrity (size match, sha256, rosbags index opens). Access failure (quota, permission, corruption) moves to the next rank and is logged in docs/PROSPECTIVE_ACCESS_LOG.md. Access retry policy: at most one retry per id after >=24 h; no resumable/ranged reassembly."
+  cue_only_fallback: "If Stage-1 finds the sequence ineligible for cue-only reasons (timescale STOP with an unexplained offset, or fewer than n_test SV windows), the sequence is recorded as INELIGIBLE (reason logged, no reference read) and the next rank is used. This is allowed because the decision is GT-free and made before any backbone inference. Maximum 2 fallbacks, then the experiment STOPS."
+
+camera_stream:
+  topic: /left_camera/image/compressed
+  message_type: sensor_msgs/CompressedImage
+  rate_hz: 10
+  shutter: global
+  facing: downward
+  primary_eye: single
+  note: "Hikvision CA-050 RGB; decode via cv2; monocular only; lidar unused. Topic presence verified from bag index at Stage 0 (a topic-name mismatch is a factual amendment only if made before any value read)."
+
+metric_cue:
+  name: ublox_standalone_displacement
+  topics_allowed: [/ublox_driver/receiver_lla, /ublox_driver/receiver_pvt]
+  primary_topic: /ublox_driver/receiver_lla
+  topics_forbidden: [/dji_osdk_ros/rtk_position, /dji_osdk_ros/rtk_velocity, /dji_osdk_ros/rtk_yaw, /dji_osdk_ros/rtk_info_position, /dji_osdk_ros/rtk_info_yaw, /dji_osdk_ros/rtk_connection_status]
+  frame: WGS84-latlonalt-to-window-local-ENU
+  enu_origin: "per-window first cue fix (shared origin for cue and reference within the window)"
+  timestamps: "t_cue_utc = timescale.to_utc(header_stamp, class_from_stage1_gate). The raw header stamp is NEVER paired with another stream."
+  preprocessing:
+    - "NavSatFix lat/lon/alt -> ECEF -> local ENU about window origin (standard WGS84; no GT fit)"
+    - "per-frame-interval cue length b_k = polyline sum of 10 Hz ENU fixes in (t_k, t_{k+1}] (UTC) with endpoint linear interpolation"
+    - "visual chord a_k = ||P_{k+1} - P_k|| from frozen backbone prediction"
+    - "constraint PathDisplacementConstraint-equivalent s*a_k ~= b_k (same semantics as v1/ADVIO/UrbanNav)"
+    - "units: metres, seconds; no outcome-dependent thinning"
+  quality_gate: "receiver_lla fixes used as-is; non-finite fixes dropped (never interpolated across a gap > 0.5 s); no RTK/quality filtering on the cue"
+  rate_hz: 10
+  variance_model: "uniform (var=1.0) primary naive/LS; Huber-robust secondary. HDOP/quality NOT used as calibration."
+
+timestamp_synchronization:
+  clock_domain: "UTC(GPS)-disciplined hardware chain per IJRR 3.3 and the dataset sync page. Header stamps may be UTC or GPST per topic; this is established per topic at Stage 1, never assumed."
+  mechanism: "a-priori hardware triggers + published leap-second constant; NO fitted offset; NO cross-correlation; NO visual alignment"
+  timescale_module: weakmetric3d.datasets.timescale
+  gpst_minus_utc_s: 18.0            # published constant (valid since 2017-01-01); asserted equal to timescale.GPST_MINUS_UTC_S
+  stage1_timescale_gate:            # NEW (B)
+    topics: [/left_camera/image/compressed, /ublox_driver/receiver_lla, /dji_osdk_ros/rtk_position]
+    sampling: "ALL messages of camera and cue; for rtk_position, header stamp parsed from raw serialized bytes [seq:u32, sec:u32, nsec:u32] ONLY (fields after the header are never deserialized at Stage 1)"
+    statistic: "d = header_stamp - bag_record_time; per topic median, min, max, n (timescale.header_offset_stats)"
+    classification: "timescale.require_common_timescale(topics, tol_s=0.5): each topic -> 'utc' (|median d| < 0.5 s) or 'gpst' (|median d - 18.0| < 0.5 s)"
+    spread_rule: "per topic, (P99 - P1) of d must be < 0.5 s, i.e. no mid-bag timescale switch"
+    cross_topic_rule: "after to_utc, the per-topic medians of (t_utc - record) must agree pairwise within 0.25 s"
+    on_fail: "STOP. Stage 1 halts before window selection; the manifest records the stats; the sequence is INELIGIBLE (cue-only reason) per sequence_selection.cue_only_fallback. Never fitted or patched."
+  time_sync_decoding:               # NEW (F)
+    topics: [/ublox_driver/time_pulse_info, /dji_osdk_ros/time_sync_fc_time_utc, /dji_osdk_ros/time_sync_gps_utc, /dji_osdk_ros/time_sync_nmea_msg, /dji_osdk_ros/time_sync_pps_source]
+    decoder: "rosbags typestore registered from the msg definitions embedded in the bag connection records (no hand-written layouts)"
+    record_per_topic: "present/absent, message type + md5sum, count, rate, header-vs-record stats and timescale class, and the decoded time fields"
+    consistency_checks:
+      - "time_sync_gps_utc / fc_time_utc: implied (UTC - header) residual median |.| < 0.5 s after conversion"
+      - "time_sync_nmea_msg: GPRMC UTC time-of-day vs header (converted) median |.| < 0.5 s"
+      - "time_pulse_info: recorded as-is (utc/gps flag if present); disclosure only"
+    on_present_but_undecodable: "STOP (fail closed), as for the timescale gate"
+    on_all_absent: "not a STOP; gate 1 then rests on the header/record timescale gate alone and this is disclosed"
+    on_check_exceedance: "STOP; never fitted"
+  matching:
+    max_dt_match_camera_cue_s: 0.06
+    max_dt_match_camera_ref_s: 0.15   # APPLIED at scoring (E)
+    policy: "all streams in UTC after conversion; nearest-sample within tolerance; endpoint linear interpolation for cue polyline"
+
+coordinate_transforms:
+  cue_enu: "window-local ENU (E,N,U) about first cue fix; WGS84"
+  reference_enu: "SAME window-local ENU origin as cue (shared origin)"
+  visual_frame: "backbone camera-centers in arbitrary similarity gauge; Umeyama SE(3) primary / Sim(3) diagnostic, exactly as v1"
+  extrinsics_note: "CAD antenna-camera lever arm (~dm) << 16 s window path; absorbed in oracle floor and disclosed"
+
+frame_sampling:
+  window_duration_s: 16
+  frames_per_window: 8
+  frame_selection: "uniform linspace over [t_start, t_start+16] (UTC) snapped to nearest image timestamp within 0.06 s"
+  start_reference: "elapsed seconds from FIRST image timestamp (UTC) in bag"
+  window_starts: "DETERMINED by window_selection (cue-only) at Stage 1; written to stage1_manifest.json with the cue statistics BEFORE any backbone inference or reference read"
+
+window_selection:                   # NEW (C, D) — GT-free, cue-only, deterministic
+  inputs: "camera timestamps + UTC-converted receiver_lla fixes ONLY (no reference, no image content, no backbone output)"
+  candidate_grid: "t0 = 16*k s elapsed, k = 1,2,...; keep t0 with t0 + 16 + 2 <= last image elapsed (non-overlapping tiling; 1 s speed-stencil margin each side)"
+  speed_profile:
+    positions: "sequence-level ENU (E,N) about the first valid cue fix; linear interpolation onto a 0.1 s UTC grid; grid points inside a cue gap > 0.5 s are NaN"
+    horizontal_speed: "v_h(t) = ||p_EN(t+1.0) - p_EN(t-1.0)|| / 2.0 s (centered 2 s difference)"
+  per_window_statistics:
+    valid_frac: "fraction of non-NaN v_h grid points in [t0, t0+16]"
+    v_mean: "mean v_h"
+    cv: "std(v_h, ddof=0) / mean(v_h)"
+    dv: "P95(v_h) - P5(v_h)"
+    S: "timing sensitivity = max over tau in {-18, +18} s of |L(tau)/L(0) - 1|, where L(tau) = 3D cue polyline length over [t0+tau, t0+16+tau] (UTC); a tau whose window leaves the cue span is skipped; at least one tau required"
+  eligibility:
+    - "all 8 frames matched within 0.06 s"
+    - "cue coverage >= 0.8 of the 7 intervals (as v1)"
+    - "valid_frac >= 0.8"
+    - "v_mean >= 1.5 m/s (excludes hover and pure vertical takeoff/landing)"
+  classes:
+    SV_speed_varying: "cv >= 0.20 AND dv >= 1.5 m/s AND S >= 0.10"
+    CC_constant_cruise: "cv < 0.10 AND S < 0.05"
+    other: "eligible but neither SV nor CC (not selected)"
+  thresholds_rationale: "cv 0.20 / dv 1.5 m/s are well above what standalone-GNSS noise does to a 2 s-differenced speed at steady cruise (~0.1-0.3 m/s); S >= 0.10 means an 18 s timescale error would move the naive scale by >= 10%, so a v1-type defect would be visible in gates 1/6/7. Fixed now; never tuned on data."
+  selection:
+    ranking: "SV windows sorted by S descending; ties -> earlier t0"
+    non_adjacency: "greedy: a window is skipped if a grid neighbour (t0 +/- 16) is already selected in ANY role"
+    test: "first n_test = 4 SV windows in ranking order (greedy, non-adjacent)"
+    validation: "next n_validation = 2 SV windows in ranking order (greedy, non-adjacent); if fewer remain, fill with eligible 'other' windows, earliest t0 first"
+    constant_cruise_controls: "up to n_cc = 2 CC windows, earliest t0 first (greedy, non-adjacent). SECONDARY only; not in any gate."
+    minimum: "fewer than 4 SV test windows => sequence INELIGIBLE (cue-only) -> sequence_selection.cue_only_fallback"
+  n_test: 4
+  n_validation: 2
+  n_cc: 2
+  role_of_validation: "adapter/pipeline/GT-free sync diagnostics before scoring; the reference stays withheld until the same one-time scoring; reported in a validation table, NOT a claim"
+  gt_free_pre_scoring_diagnostic: "for every selected window after inference: Spearman rho(a_k, b_k) between per-interval visual chords and cue lengths, and the same with the cue shifted +/-18 s. Recorded before scoring; disclosure only (see open_decisions)."
+
+backbones:
+  da3-base:
+    family: depth-anything-3
+    hub: depth-anything/DA3-BASE
+    from_pretrained_required: true
+    is_metric: false
+    process_res: 378
+    process_res_method: upper_bound_resize
+    ref_view_strategy: middle
+    device: cuda
+    execution: local
+  vggt-1b:
+    family: vggt
+    model_id: facebook/VGGT-1B
+    model_revision: 860abec7937da0a4c03c41d3c269c366e82abdf9
+    source_url: https://github.com/facebookresearch/vggt.git
+    source_revision: a288dd0f14786c93483e45524328726ab7b1b4ce
+    checkpoint: model.pt
+    checkpoint_bytes: 5026874952
+    checkpoint_sha256: d15bf50a8615c8225ed48b51ea5cac673d82442ec0309036df555a053253afe0
+    preprocess: "official load_and_preprocess_images(mode=crop), width 518"
+    compute_dtype: "float32 weights; bfloat16 autocast on CUDA major>=8 else float16"
+    seed: 0
+    license: CC-BY-NC-4.0
+    execution: off_box_user_gpu
+  only_intended_variable: "backbone prediction (same windows, frames, cue, preprocessing, solver, evaluator, sync mapping)"
+
+solver:
+  implementation: weakmetric3d.optimization.grounder.MetricGrounder
+  solvers_scored: [none, naive, ls, robust]
+  primary_solver: naive
+  robust_loss: {kernel: huber, huber_delta: 1.345, max_iters: 25, reject_z: 6.0, min_obs: 1}
+  code_frozen: true
+
+reference_handling:                 # NEW (E) — applied, not merely declared
+  topic: /dji_osdk_ros/rtk_position
+  fix_status_topic: /dji_osdk_ros/rtk_info_position
+  fixed_values: [50]   # NARROW_INT (RTK fixed). DJI OSDK positionSolution: 0 none, 16 single, 34 float, 50 fixed. Source: DJI OSDK Telemetry::RTK reference + DJI Enterprise geospatial FAQ (resolved from documentation 2026-09-29, before any data)
+  when_read: "ONLY at one-time Stage-2 scoring, after SCORING_RECEIPT.json is written atomically (as v1)"
+  per_frame_match: "reference position = nearest rtk_position sample (UTC per Stage-1 class) within 0.15 s of the frame's UTC stamp; fix status = nearest rtk_info_position sample within 0.15 s; frame is REF-VALID iff both matched AND status in fixed_values"
+  window_rule: "window evaluable iff >= 7 of 8 frames are REF-VALID; ATE computed on REF-VALID frames only (identical frame subset for both backbones and all solvers); otherwise excluded before any metric is computed, disclosed, NOT replaced"
+  log: "per window: n matched, n fixed, max |dt|; written before metrics in the scoring log"
+
+valid_missing_sensor_handling:
+  cue_coverage_required: 0.8
+  ref_valid_frames_required: 7      # of 8 (see reference_handling)
+  missing_cue_action: "drop interval; window valid iff >=80% of 7 intervals covered"
+  missing_ref_action: "window excluded at scoring before metrics (recorded, NOT replaced)"
+  nan_scale_action: "report NaN, count as failure, no substitution"
+
+evaluation_metrics:
+  - raw_ate_se3
+  - grounded_ate_se3_naive_primary
+  - grounded_ate_se3_ls
+  - grounded_ate_se3_robust
+  - oracle_ate_optimal
+  - oracle_scale_ate_optimal
+  - raw_ate_sim3_diagnostic_only
+  - estimated_scale_s_hat
+  - cue_supported_scale_s_cue
+  - cue_reference_discrepancy_Lg_over_Lt
+  - three_limits_factors
+  - estimator_departure_s_hat_over_s_cue
+  - scale_error_log_and_rel
+  - nominal_speed_prior_ate_se3     # NEW (H), secondary
+evaluation_alignment: "Umeyama SE(3) primary; Sim(3) diagnostic only"   # v1 nested this under the metrics list (not valid YAML); moved to its own key
+
+primary_endpoint: "Per backbone, median naive-grounded SE(3) ATE vs median raw SE(3) ATE over the 4 frozen SV test windows (withheld reference, one-time scoring), always co-reported with median oracle ATE (absolute) and leverage. Success = substantial raw->grounded reduction when the oracle admits correction, with grounded approaching each backbone's own global-scale oracle. No ranking between backbones."
+secondary_endpoints:
+  - "per-window raw/grounded/oracle/scales + three-limits identity for each backbone"
+  - "robust vs naive comparison"
+  - "cue/reference discrepancy Lg/Lt distribution, per class (SV vs CC)"
+  - "nominal-speed-prior baseline: s_prior = v_cruise_table * 16 s / sum_k a_k (dataset-table cruise speed; no sensor) — grounded vs prior ATE per SV window"
+  - "constant-cruise control windows (CC): same metrics, not in gates"
+  - "timing-sensitivity S per window and GT-free rho(a,b) diagnostics"
+  - "validation-window adapter/sync table (NOT a claim)"
+  - "sensor-bound instantiation attempt (expected UNINSTANTIATED)"
+  - "R and raw-reduction co-reported with the gauge caveat (raw in arbitrary unit gauge inflates leverage); min-ATE/Sim(3) oracle shown alongside"
+
+exclusion_rules:
+  - "sensor-only exclusions: missing images, cue coverage <80%, <7/8 REF-VALID frames (fix status / 0.15 s match), timescale or time_sync STOP"
+  - "FORBIDDEN: exclusion by GT performance, oracle value, post-score residuals, manual removal, window replacement"
+
+failure_policy:
+  - "solver NaN/inf: failure counted, no replacement"
+  - "bag unreadable/corrupt at Stage 0: access failure -> next rank (logged)"
+  - "Stage-1 timescale/time_sync STOP or <4 SV windows: sequence INELIGIBLE (cue-only) -> next rank (max 2), else experiment STOPS"
+  - "DA3 inference failure: record error, no cue/GT peeking to rescue"
+  - "VGGT remote unavailable: AWAITING_USER_GPU_RUN; scoring withheld until returned pack validates; no substitution"
+
+integrity:
+  gt_in_inference: false
+  reference_derived_offsets: false
+  fitted_time_offsets: false
+  sequence_replacement_by_outcome: false
+  window_selection_uses_reference: false
+  manual_window_removal_after_gt: false
+  hidden_scale_normalization: false
+  cue_reference_topic_isolation: true
+  leakage_check: "assert_no_gt_in_constraints + topic-allowlist test + raw-header-only parse test for rtk_position at Stage 1 + withheld-position two-stage protocol"
+  required_tests_before_freeze:
+    - "timescale: classify/to_utc/require_common_timescale unit tests incl. +18 s GPST fixture"
+    - "Stage-1 gate: synthetic cue at +18 s is classified gpst and converted; synthetic offset of +5 s raises STOP; pairing code rejects unconverted stamps"
+    - "window_selection determinism: same inputs -> identical starts/roles; synthetic hover->cruise profile is SV, constant 3 m/s + noise is CC"
+    - "rtk_position header-only raw-byte parser never touches bytes beyond offset 12"
+
+contract_immutability: "After freeze: SHA256 in artifacts/experiment_registry.json. No edits after any cue value is read, except factual topic-name amendments made before any value read. Bug => v3 + reason."
+
+resolved_decisions_2026_09_29:   # user: "run autonomously"; draft defaults adopted BEFORE any v2 data (bag not yet downloaded)
+  - "Rank order: default (HKisland_GNSS02 first). HKisland_GNSS02 selected."
+  - "Download + GPU for VGGT arm: authorized by user."
+  - "rtk fix status read at Stage 2 only (v1 practice, default)."
+  - "Thresholds cv>=0.20, dv>=1.5 m/s, S>=0.10, v_mean>=1.5 m/s: ACCEPTED as drafted."
+  - "rho(a,b) diagnostic: disclosure only (default)."
+  - "Nominal-speed-prior baseline: secondary, not a gate (default)."
+  - "CC controls (n_cc=2): RUN (cheap; separates cue value from mean-speed knowledge; not in gates)."
+  - "DJI fixed_values = [50] resolved from OSDK docs."
+  - "STILL OPEN before freeze: implement + pass required_tests_before_freeze (Stage-1 v2 code: SV window selection, header-only rtk parser, pairing guard)."
+open_decisions:   # superseded by resolved_decisions_2026_09_29 except the two STILL OPEN items; delete at freeze
+  - "Sequence rank order (default HKisland_GNSS02 > HKisland_GNSS03 > HKisland_GNSS01 > HKairport_GNSS02 > HKairport_GNSS03). Alternative: honour the Jan-2026 designation of HKisland_GNSS01 first (3 m/s risks v1-like insensitivity)."
+  - "Download authorization + GPU time for the VGGT arm (Drive currently quota-exceeded for all ids, incl. control)."
+  - "DJI rtk_info_position fixed-solution code(s): confirm from DJI OSDK docs/source."
+  - "Whether rtk fix status may be read at Stage 1 (status only, no positions) to pre-exclude windows, instead of at Stage 2 (v1 practice, default)."
+  - "Thresholds cv>=0.20, dv>=1.5 m/s, S>=0.10, v_mean>=1.5 m/s: accept or change NOW (never after data)."
+  - "Whether the GT-free rho(a,b) diagnostic is a STOP gate (e.g. rho on validation < 0) or disclosure only (default)."
+  - "Whether the nominal-speed-prior baseline becomes a gate (e.g. grounded beats prior on >=3/4 SV windows) or stays secondary (default)."
+  - "Whether CC controls (n_cc=2) are run (adds 2 windows x 2 backbones)."

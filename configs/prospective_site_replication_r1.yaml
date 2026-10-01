@@ -1,0 +1,127 @@
+# ============================================================================
+# Prospective SITE REPLICATION R1 (pre-registration).
+# A NEW pre-registered experiment. It is NOT a version of the cross-backbone v1-v5 chain:
+#   - v5 (contract sha 79d67798...) stays FINAL, scored and adjudicated (Claim 1 level 1, conditional).
+#   - R1 never rescores, replaces, or re-reads any v1-v5 window, cue, prediction or reference.
+# Question: does the v5 Claim-1 result replicate at a second MARS-LVIG site (airfield, unseen flights),
+# and do two further real-world u-blox cues (Doppler speed, altitude) ground scale under the same rules?
+# Authorized by the user 2026-10-01 ("HKairport_GNSS02 + 03", "Speed + altitude").
+# Freeze = sha256 of this file recorded in artifacts/experiment_registry.json BEFORE any R1 bag byte is read.
+# ============================================================================
+
+name: prospective_site_replication_r1
+status: "pre_registered: frozen iff the sha256 of this file appears in artifacts/experiment_registry.json"
+relation_to_claim1:
+  claim: "docs/CLAIM_LEVEL_1_CROSS_BACKBONE_V5_ADJUDICATION.md (exact wording, 11 binding caveats)"
+  purpose: "scope test of Claim 1 caveat 2 (one site, one day) at a second site"
+  never: "R1 cannot raise the claim level, change the Claim-1 wording, or rescore v5"
+  outcome_mapping:   # fixed now, before any data
+    PRIMARY_REPLICATED: "gates R1-1..R1-10 PASS and gate R1-12 not NO -> Claim-1 caveat 2 is restated as two sites (island, airfield), 5 flights; every other caveat unchanged"
+    PRIMARY_NOT_REPLICATED: "gate R1-6 or R1-7 FAIL with integrity gates PASS -> Claim 1 stays level 1 but MUST carry an added caveat 'did not replicate at a second MARS-LVIG site (R1, airfield)' wherever it is stated"
+    INTEGRITY_FAIL: "any of gates R1-1..R1-5, R1-9, R1-10 FAIL -> R1 is void and reported as such; Claim 1 unchanged"
+    STOP: "Stage-0/1 STOP or < 2 pooled SV test windows -> reported as STOP; Claim 1 unchanged; no fallback, no replacement"
+  secondary_arm_outcomes: "each secondary arm is reported as REPLICATED / NOT_REPLICATED / INCONCLUSIVE (rule in secondary_arms); these never enter the Claim-1 gates"
+
+dataset:
+  name: MARS-LVIG
+  paper_doi: 10.1177/02783649241227968
+  license: CC-BY-NC-SA-4.0-academic-only
+  access: Google-Drive-rosbag
+  pool:   # fixed a priori; rank order = v5 rank list positions 4, 5 (unchanged); bytes/sha recorded at Stage 0 before any message is deserialized
+    - {sequence: HKairport_GNSS02, bag_drive_id: 1OVFhhpkFReSy7j1AYIYQG4rbWL_ZRP-3, table_duration_s: 462, v_cruise_table_mps: 6.0, table_altitude_m: 80}
+    - {sequence: HKairport_GNSS03, bag_drive_id: 1ORuC3xyi7yonIzD8mTmKDWRU0T6snu9n, table_duration_s: 396, v_cruise_table_mps: 9.0, table_altitude_m: 80}
+  freshness: "Neither bag has ever been downloaded, opened, or censused (v5 contract excluded both before any v5 statistic). The airfield SITE was seen in v1 (HKairport_GNSS01); these FLIGHTS were not. Disclosed as a limitation of 'new site'."
+  excluded:
+    HKairport_GNSS01: "v1 sequence (exposed); not used in any role"
+    HKisland_GNSS01-03: "v5 pool (exposed)"
+    AMtown01-03: "no documented u-blox receiver (non-_GNSS sequences); no weak cue"
+    AMvalley/Featureless: "authors flag camera/LiDAR degeneration"
+    Evening_sequences: "no current Drive id; lighting confound"
+  stage0: "per bag: byte size, sha256 and rosbags index open recorded BEFORE any message is deserialized; all contract topics present (topic list written). Access failure (quota/permission/corruption) -> at most one retry per id after >= 24 h; if a pool bag stays unavailable, R1 runs on the remaining bag (disclosed) and the minimum-window rule still applies."
+  execution_host: "Stage 0/1 run on the user's GPU host (local free disk ~24 GB < 21 GB of bags plus working space). Code shipped as a zip whose sha256 is recorded. The host returns: census/cue/pvt CSVs, selected frames, and a sealed reference sub-bag per sequence (raw copy, never deserialized), all sha-verified on both ends (v5 GNSS02 procedure)."
+
+camera_stream: "IDENTICAL to v5 (/left_camera/image/compressed, 10 Hz, downward, monocular)"
+
+primary_arm:   # = v5 Claim-1 replication; every rule below is v5's unless stated
+  cue: "ublox_standalone_displacement from /ublox_driver/receiver_lla, IDENTICAL to v5 metric_cue (GPST->UTC with the published 18.0 s; polyline b_k; PathDisplacementConstraint s*a_k ~= b_k)"
+  stage1_gates: "IDENTICAL to v5 per pool sequence: timescale gate + spread rule, A2 recorder clock (delta from camera only), cue-vs-camera 0.25 s, rtk on recorder clock (|median| < 0.05 s), A1 time_sync decoding and checks. A gate STOP on ANY pool sequence STOPS R1."
+  window_statistics: "IDENTICAL to v5 (16 s grid, 2 s centred speed, valid_frac, v_mean, cv, dv, S with tau = +/-18 s; classes SV/CC/other with the v5 thresholds)"
+  pooled_selection:
+    rule: "v5 amendment_A3 pooled_selection over the 2-sequence pool (rank HKairport_GNSS02, HKairport_GNSS03): test = first n_test = 4 SV windows by S desc (ties: sequence rank, earlier t0), greedy non-adjacent within a sequence; validation = next 2 SV, else 'other' by (rank, t0); CC controls up to 2 (secondary)"
+    minimum_change: "R1 CHANGE vs v5: if the greedy non-adjacent pooled selection yields fewer than 4 SV test windows, ALL SV windows it selects (>= 2) are the test set; < 2 -> STOP. Set a priori: v5's census found 1-2 SV windows per survey flight, so 4 from 2 flights is not guaranteed. With n_test = 2 or 3 the gate medians are reported with that n and the small n is a binding caveat."
+  backbones: "IDENTICAL to v5 (DA3-BASE local, process_res 378, ref view middle; VGGT-1B pinned model/source/checkpoint, crop 518, seed 0, off-box GPU in the conda py3.11 env)"
+  solver: "IDENTICAL to v5 (MetricGrounder; none/naive/ls/robust; primary naive; frozen code)"
+  reference: "IDENTICAL to v5 (rtk_position + rtk_info_position, fixed_values [50], 0.15 s match, >= 7/8 REF-VALID, sealed sub-bag opened only after SCORING_RECEIPT.json). Stage 1 reads ONLY the header stamps and record times of /dji_osdk_ros/rtk_position for the v5 recorder-clock gate (identical to v5); no position or status value is deserialized before scoring"
+  metrics: "IDENTICAL to v5 evaluation_metrics, plus the Sim(3) min-ATE oracle and the scale error vs the ATE-optimal scale reported per window (v5 caveats 3, 11)"
+  gates:   # same 12 gates and thresholds as docs/CLAIM_LEVEL_1_CROSS_BACKBONE_PREREG.md, applied to R1
+    R1-1: "prospective synchronization integrity (Stage-1 gates above, recorded before reference opening)"
+    R1-2: "no GT inference leakage; receipt written exclusively before reference opening"
+    R1-3: "both backbones on identical windows/frames (byte-identical)"
+    R1-4: "real weak cue: receiver_lla only (primary), receiver_pvt / receiver_lla altitude only (secondary arms); no /dji_osdk_ros/* topic in any cue"
+    R1-5: "same grounding method and unchanged code for both backbones and all arms"
+    R1-6: "median R >= 0.70 and median reduction >= 30% per backbone over evaluable SV test windows (leverage >= 0.25 m), with >= 1 evaluable window"
+    R1-7: "median grounded <= 1.5 x median oracle per backbone, absolute oracle and leverage co-reported; the binding oracle is the v5 path-length oracle (oracle_ate_se3); the Sim(3) min-ATE oracle and the scale error vs the ATE-optimal scale are reported only"
+    R1-8: "geometry-limited windows (leverage < 0.25 m) disclosed"
+    R1-9: "cue failures/outages disclosed; none replaced"
+    R1-10: "no outcome-driven sequence/window replacement"
+    R1-11: "v5 prospective result and ADVIO retained as context; R1 does not substitute for them"
+    R1-12: "adversarial reviewer returns YES / NO / CONDITIONAL YES on the outcome_mapping statement that applies"
+
+secondary_arms:   # pre-registered now; scored in the SAME one-time scoring; never in the Claim-1 gates
+  speed_doppler:
+    topic: /ublox_driver/receiver_pvt   # gnss_comm/GnssPVTSolnMsg, decoded from the bag-embedded msg definition
+    missing_topic: "PVT topic absent or undecodable in a sequence -> speed arm NOT_RUN for that sequence (recorded at Stage 0/1, disclosed); never a STOP"
+    fields: "time (GNSS week + tow, GPST), vel_n, vel_e, vel_d (m/s, receiver Doppler solution)"
+    timestamp: "t_utc = GPS epoch + week*604800 + tow - 18.0 s (published constant; never fitted)"
+    stage1_gate: "recorded per sequence: |median(t_utc - (record + delta))| < 0.25 s AND (P99 - P1) of that residual < 0.5 s. FAIL -> speed arm NOT RUN for that sequence (disclosed); the primary arm is unaffected"
+    preprocessing:
+      - "speed |v| = sqrt(vel_n^2 + vel_e^2 + vel_d^2) (3D, matching the 3D cue polyline and 3D ATE)"
+      - "non-finite samples dropped; no quality/accuracy filtering (as the primary cue)"
+      - "interval length b_k^v = integral of |v| over (t_k, t_{k+1}] with linear interpolation; an interval is usable iff no sample gap > 0.5 s inside it"
+      - "constraint PathDisplacementConstraint-equivalent s*a_k ~= b_k^v; same grounder, solvers, primary naive"
+    windows: "the primary arm's test, validation and CC windows (same frames, same predictions)"
+    coverage_rule: "window valid iff >= 80% of its 7 intervals are usable (as primary) AND it is REF-evaluable; medians use the R1-6 leverage filter (>= 0.25 m); >= 2 valid windows with none above the leverage filter -> NOT_REPLICATED (as R1-6 requires >= 1 evaluable window)"
+    gt_free_diagnostic: "per window sum_k b_k^v / sum_k b_k (speed vs displacement cue), recorded before scoring"
+    success_rule: "REPLICATED iff, for BOTH backbones over the evaluable SV test windows, median R >= 0.70, median reduction >= 30% and median grounded <= 1.5 x median oracle (the R1-6/R1-7 thresholds); NOT_REPLICATED otherwise; INCONCLUSIVE iff the arm did not run or < 2 SV test windows are valid for it"
+  altitude_ublox:
+    topic: /ublox_driver/receiver_lla   # altitude field (WGS84 ellipsoidal height), same UTC conversion as the primary cue
+    rationale: "an altitude change constrains scale only along the vertical. The backbone frame is not gravity-aligned, so the vertical is taken GT-free from the camera: the camera is downward-facing (nadir), so its optical axis approximates gravity up to platform tilt (disclosed assumption)"
+    vertical_axis: "e_down = normalize(mean_k R_k^T [0,0,1]) over the window's 8 frames, R_k = rotation of the predicted OpenCV world-to-camera pose; e_up = -e_down. Disclosed bias: platform tilt that does not average out over the window tilts e_up by roughly the mean tilt angle (tested: a constant 8 deg tilt -> ~8 deg axis error)"
+    height_change: "dh = h(t_last) - h(t_first); h = receiver_lla altitude linearly interpolated at the frame UTC stamps (no interpolation across a gap > 0.5 s)"
+    estimator: "dv = e_up . (C_last - C_first) (predicted camera centres); s_alt = dh / dv"
+    observability_rule: "OBSERVABLE iff |dh| >= 5.0 m AND |dv| / ||C_last - C_first|| >= 0.2. Otherwise NOT_OBSERVABLE (no scale applied). If OBSERVABLE but s_alt <= 0 or non-finite -> FAILURE (counted, no substitution). Decided from cue + prediction only, recorded before scoring."
+    windows:
+      vertical_class: "V windows, selected GT-free at Stage 1 AFTER the primary selection: eligible 16 s grid windows (all 8 frames matched within 0.06 s, cue coverage >= 0.8, valid_frac >= 0.8; NO v_mean requirement) with |dh_window| >= 10.0 m, dh_window = median altitude over [t0+15, t0+16] - median over [t0, t0+1]; ranked by |dh_window| desc (ties: sequence rank, earlier t0), greedy, non-adjacent to any already selected window of any role; n_vertical = up to 4 pooled"
+      also_reported_on: "the primary test/validation/CC windows (expected mostly NOT_OBSERVABLE at constant altitude; reported, not scored as failures)"
+    success_rule: "REPLICATED iff, for BOTH backbones, >= 2 V windows are OBSERVABLE and, over the observable V windows, median R >= 0.70, median reduction >= 30% and median grounded <= 1.5 x median oracle; NOT_REPLICATED if >= 2 are OBSERVABLE and any criterion fails (FAILURE windows count against the medians as raw ATE); INCONCLUSIVE if < 2 V windows are OBSERVABLE for either backbone; >= 2 OBSERVABLE but none above the leverage filter -> NOT_REPLICATED. Counting: OBSERVABLE + FAILURE among REF-evaluable V windows; FAILURE windows are scored at scale 1 (raw ATE). Binding medians use the R1-6 leverage filter (>= 0.25 m); unfiltered medians over all observable V windows are co-reported"
+  forbidden_for_all_arms: ["/dji_osdk_ros/rtk_*", "/dji_osdk_ros/gps_position", "/dji_osdk_ros/gps_velocity", "/dji_osdk_ros/velocity", "/dji_osdk_ros/local_position", "/dji_osdk_ros/height_above_takeoff", "/dji_osdk_ros/vo_position", "/dji_osdk_ros/attitude", "/dji_osdk_ros/imu"]
+  forbidden_reason: "the DJI flight controller fuses RTK, so any DJI pose/velocity/height/attitude topic may carry reference information"
+
+scoring:
+  order: "replay guard -> verify both arms (DA3 manifest, VGGT pack outputs) -> GT-free diagnostics (rho, speed/displacement ratio, altitude observability) written exclusively -> SCORING_RECEIPT.json written exclusively ('x') and its sha256 logged BEFORE any reference byte is read -> sealed sub-bags opened once -> REF-VALID log -> metrics for all arms -> results"
+  receipt_note: "the pre-reference receipt bytes are hashed and the hash is written to a separate file before the reference opens (fixes v5 Review A F1)"
+  ref_valid_log_note: "written before metrics (fixes v5 Review A F2)"
+  output_dir: artifacts/site_replication_r1
+  replay: "refused once SCORING_RECEIPT.json exists"
+
+exclusion_rules: "IDENTICAL to v5 (sensor-only; FORBIDDEN by GT performance, oracle value, residuals, manual removal, replacement)"
+failure_policy: "IDENTICAL to v5, plus: secondary-arm failures never affect the primary arm; VGGT unavailable (credits) -> AWAITING_USER_GPU_RUN, scoring withheld, no substitution"
+
+integrity:
+  gt_in_inference: false
+  reference_derived_offsets: false
+  fitted_time_offsets: false
+  window_selection_uses_reference: false
+  cue_reference_topic_isolation: true
+  grounder_pin: "sha256 of weakmetric3d/optimization/grounder.py recorded in the registry entry at freeze (fixes v5 Review A F5)"
+  required_tests_before_freeze:
+    - "GNSS week/tow -> UTC conversion (incl. the 18 s constant and a week rollover fixture)"
+    - "Doppler speed integration over frame intervals: constant and accelerating synthetic profiles; gap > 0.5 s makes the interval unusable"
+    - "speed-arm grounding recovers a known scale on a synthetic trajectory"
+    - "altitude arm: e_up from tilted nadir cameras; s_alt recovers a known scale on a climbing synthetic trajectory; observability rule returns NOT_OBSERVABLE for level flight and FAILURE for a negative scale"
+    - "vertical window selection: deterministic; selects climb/descent windows; never overlaps or neighbours an already selected window"
+    - "pooled selection with the R1 minimum rule (4 SV -> 4; 3 -> 3; 1 -> STOP)"
+    - "topic allow-list: no /dji_osdk_ros/* topic reaches any cue constructor"
+    - "scoring order: receipt hash file and REF-VALID log exist before any metric is computed (mocked reference)"
+
+contract_immutability: "After freeze: sha256 in artifacts/experiment_registry.json. No edits after any R1 bag byte is read, except factual topic/field-name amendments made before any value is read (logged). Bug => new version + reason, logged in docs/SITE_REPLICATION_R1_LOG.md."

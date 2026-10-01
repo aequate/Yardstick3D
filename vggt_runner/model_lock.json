@@ -1,0 +1,23 @@
+{
+  "pack_id": "vggt_offbox_cross_backbone_v1",
+  "dataset": "MARS-LVIG",
+  "sequence": "HKairport_GNSS01",
+  "source_url": "https://github.com/facebookresearch/vggt.git",
+  "source_revision": "a288dd0f14786c93483e45524328726ab7b1b4ce",
+  "model_id": "facebook/VGGT-1B",
+  "model_revision": "860abec7937da0a4c03c41d3c269c366e82abdf9",
+  "checkpoint": "model.pt",
+  "checkpoint_sha256": "d15bf50a8615c8225ed48b51ea5cac673d82442ec0309036df555a053253afe0",
+  "checkpoint_bytes": 5026874952,
+  "metadata_checked_utc_date": "2026-09-08",
+  "metadata_sources": [
+    "https://api.github.com/repos/facebookresearch/vggt/commits/main",
+    "https://huggingface.co/api/models/facebook/VGGT-1B?blobs=true"
+  ],
+  "preprocess": "official load_and_preprocess_images(mode=crop), width518",
+  "compute_dtype": "float32 weights; bfloat16 autocast on CUDA major>=8 else float16",
+  "seed": 0,
+  "license": "CC-BY-NC-4.0",
+  "contains_ground_truth": false,
+  "gpu_execution_verified": false
+}

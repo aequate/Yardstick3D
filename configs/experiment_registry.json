@@ -1,0 +1,227 @@
+{
+  "experiments": [
+    {
+      "id": "prospective_metric_grounding_v2",
+      "hypothesis": "Sparse physical metric grounding substantially reduces metric error of a pretrained 3DFM when relative geometry admits global-scale correction, on prospectively frozen synchronized real data",
+      "dataset": "MARS-LVIG (dev HKairport_GNSS01, test HKisland_GNSS01)",
+      "backbone": "DA3-BASE (from_pretrained, relative)",
+      "cue": "ublox_standalone_displacement (receiver_lla/pvt only; rtk_* forbidden)",
+      "reference": "DJI-RTK rtk_position/velocity, fix-gated, withheld until one-time scoring",
+      "solver": "unchanged canonical MetricGrounder (naive primary; ls/robust secondary)",
+      "contract": "configs/prospective_metric_grounding_v2.yaml",
+      "contract_sha256": "8af5106aae2484f653b41d1e0e060a8928e15ed1c5245110a28f370cab33a923",
+      "status": "stalled_access_blocked",
+      "blocker": "docs/PROSPECTIVE_ACCESS_LOG.md (Drive quota-exceeded, both file IDs; no GT seen; resumable later)",
+      "results_path": "artifacts/prospective_metric_grounding_v2.json",
+      "claim_relevance": "external-validity prospective test; claim 0 until adjudicated"
+    },
+    {
+      "id": "prospective_metric_grounding_v3",
+      "hypothesis": "Sparse physical metric grounding substantially reduces metric error of a pretrained 3DFM when relative geometry admits global-scale correction, on prospectively frozen synchronized real data",
+      "dataset": "UrbanNav-HK Medium-Urban-1 TST 2021-05-17 (validation elapsed [90,180]s, test [270,360,450,540,630]s)",
+      "backbone": "DA3-BASE (from_pretrained, relative)",
+      "cue": "ublox_rinex_standalone_spp_displacement (SUPERSEDED pre-outcome by v4 NMEA-GGA; no reference opened, no outcome)",
+      "reference": "SPAN-CPT+IE inspvax/GT-raw, quality-gated, withheld until one-time scoring",
+      "solver": "unchanged canonical MetricGrounder (naive primary; ls/robust secondary)",
+      "contract": "configs/prospective_metric_grounding_v3.yaml",
+      "contract_sha256": "79635e9f4ff4a1c5dc12cd8529d3f4078441cc26e64295155c0a74c500e2a320",
+      "status": "superseded_pre_outcome",
+      "superseded_by": "prospective_metric_grounding_v4",
+      "claim_relevance": "external-validity prospective test; claim 0 until adjudicated"
+    },
+    {
+      "id": "prospective_metric_grounding_v4",
+      "hypothesis": "Sparse physical metric grounding substantially reduces metric error of a pretrained 3DFM when relative geometry admits global-scale correction, on prospectively frozen synchronized real data",
+      "dataset": "UrbanNav-HK Medium-Urban-1 TST 2021-05-17 (validation elapsed [90,180]s, test [270,360,450,540,630]s)",
+      "backbone": "DA3-BASE (from_pretrained, relative)",
+      "cue": "ublox_f9p_nmea_gga_displacement (receiver real-time GGA q1/2 only; SPAN/IE/base/RTK-fixed forbidden)",
+      "reference": "SPAN-CPT+IE inspvax/GT-raw, quality-gated, withheld until one-time scoring",
+      "solver": "unchanged canonical MetricGrounder (naive primary; ls/robust secondary)",
+      "contract": "configs/prospective_metric_grounding_v4.yaml",
+      "contract_sha256": "b58e890a3ae641ae99af670c7f1563ca97746467af628ae751049c62524fb1b7",
+      "status": "complete",
+      "results_path": "artifacts/prospective_v4/FINAL_SUMMARY.json",
+      "result_detail_path": "artifacts/prospective_v4/prospective_metric_grounding_v4.json",
+      "bag_sha256": "612f6239e6d5a2cc59aa7d01be86d1c0a35f401f22eede4a9fe75eeb67425ffa",
+      "reference_sha256": "9d48bb497878aafbd17290789560394c72ecafec20c9e0eaff448418695d92bf",
+      "outcome": "test median raw 21.36m -> grounded naive 8.86m (-58.5%); oracle 8.69m; capture 0.93-1.00; Lg/Lt 0.996; 4/5 test windows scored (1 excluded pre-scoring on cue outage)",
+      "claim_relevance": "external-validity prospective test; Claim 1 NOT promoted; claim 0 retained"
+    },
+    {
+      "id": "prospective_cross_backbone_v2",
+      "status": "superseded_by_v3_pre_outcome (stage1 literal time_sync STOP; see docs/CROSS_BACKBONE_V2_DEVIATION_LOG.md D2)",
+      "contract_path": "configs/prospective_cross_backbone_v2.yaml",
+      "contract_sha256": "64addd0fa44e01d8e191676de4737b167b4a674a41476272bdefb1471b76efc5",
+      "frozen_utc": "2026-09-29T07:18:53.262444+00:00",
+      "dataset": "MARS-LVIG",
+      "sequence": "HKisland_GNSS02",
+      "backbones": [
+        "da3-base",
+        "vggt-1b"
+      ],
+      "prereg_doc": "docs/CLAIM_LEVEL_1_CROSS_BACKBONE_V2_PREREG_DRAFT.md",
+      "note": "frozen before bag download; fixes v1 GPST cue defect (timescale gate), speed-varying SV windows + 2 CC controls"
+    },
+    {
+      "id": "prospective_cross_backbone_v4",
+      "status": "STOPPED_all_permitted_sequences_ineligible_pre_outcome",
+      "contract_path": "configs/prospective_cross_backbone_v4.yaml",
+      "contract_sha256": "d484ebb2e6ba4182dbd097282b3087f73fad84836c120f19a5ef80da25a27670",
+      "frozen_utc": "2026-09-30T06:59:20.367022+00:00",
+      "dataset": "MARS-LVIG",
+      "rank_order": [
+        "HKisland_GNSS02",
+        "HKisland_GNSS03",
+        "HKisland_GNSS01",
+        "HKairport_GNSS02",
+        "HKairport_GNSS03"
+      ],
+      "backbones": [
+        "da3-base",
+        "vggt-1b"
+      ],
+      "amendment": "A2 recorder-clock offset from hardware camera stamps (sensor-only)",
+      "authorized_by_user": "2026-09-30 ('can you not just edit it a bit and fix it')",
+      "ineligible": {
+        "HKisland_GNSS02": "2 SV windows (A2 gate PASS)",
+        "HKisland_GNSS03": "2 SV windows",
+        "HKisland_GNSS01": "1 SV window (A2 gate PASS)"
+      },
+      "outcome": "no scoring; no reference read; claim level 0"
+    },
+    {
+      "id": "prospective_cross_backbone_v5",
+      "status": "executed_adjudicated_claim1_CONDITIONAL_PASS",
+      "contract_path": "configs/prospective_cross_backbone_v5.yaml",
+      "contract_sha256": "79d67798ba7b770c4a10eeb1d2c262a38b88237b37d3a735a6bfdee0a7867b60",
+      "frozen_utc": "2026-09-30T14:17:11.501007+00:00",
+      "dataset": "MARS-LVIG",
+      "pool": [
+        "HKisland_GNSS02",
+        "HKisland_GNSS03",
+        "HKisland_GNSS01"
+      ],
+      "backbones": [
+        "da3-base",
+        "vggt-1b"
+      ],
+      "amendment": "A3 pooled SV test windows across the fixed 3-sequence island pool (v4 gates/thresholds unchanged)",
+      "authorized_by_user": "2026-09-30 ('continue with option 1')",
+      "final": "no v6: a v5 STOP or FAIL is reported at claim level 0",
+      "prereg_doc": "docs/CROSS_BACKBONE_V2_DEVIATION_LOG.md (D8)",
+      "claim_level": 1,
+      "claim_level_qualifier": "conditional: exact prereg wording only, with the 11 binding Review B/C caveats + Review A F1-F7",
+      "adjudication": "docs/CLAIM_LEVEL_1_CROSS_BACKBONE_V5_ADJUDICATION.md",
+      "reviews": {
+        "A_integrity": "docs/CROSS_BACKBONE_V5_REVIEW_A_INTEGRITY.md (INTEGRITY VERDICT: PASS WITH CAVEATS)",
+        "BC_interpretation": "docs/CROSS_BACKBONE_V5_REVIEW_BC_INTERPRETATION.md (GATE 12 DECISION: CONDITIONAL YES)"
+      },
+      "test_window_medians_se3_ate_naive_m": {
+        "da3-base": {
+          "raw": 11.89,
+          "grounded": 3.514,
+          "oracle_gate": 3.501,
+          "oracle_sim3": 3.42,
+          "leverage": 10.37,
+          "median_R": 1.02,
+          "median_reduction": 0.737
+        },
+        "vggt-1b": {
+          "raw": 11.9,
+          "grounded": 5.23,
+          "oracle_gate": 5.26,
+          "oracle_sim3": 5.1,
+          "leverage": 8.53,
+          "median_R": 1.01,
+          "median_reduction": 0.569
+        }
+      },
+      "solver_dependence": "naive only; VGGT robust median grounded 1.61x oracle (would fail gate 7)",
+      "results": {
+        "paired_results": "artifacts/cross_backbone_v5/paired_results.json (f2fbc9b9...)",
+        "gate_metrics": "artifacts/cross_backbone_v5/claim1_gate_metrics.json (2ef5197e...)",
+        "scoring_receipt": "artifacts/cross_backbone_v5/SCORING_RECEIPT.json (final 67479d0c...; replay refused)"
+      },
+      "scoring_date": "2026-09-30",
+      "replay": "refused (SCORING_RECEIPT.json exists)"
+    },
+    {
+      "id": "prospective_site_replication_r1",
+      "status": "executed_adjudicated_PRIMARY_REPLICATED",
+      "contract_path": "configs/prospective_site_replication_r1.yaml",
+      "contract_sha256": "aad26e3baa511b53705d3c96781b8683fe11a1030db7085e318d63986a7ce0cd",
+      "frozen_utc": "2026-10-01T07:48:54.653132+00:00",
+      "dataset": "MARS-LVIG",
+      "pool": [
+        "HKairport_GNSS02",
+        "HKairport_GNSS03"
+      ],
+      "backbones": [
+        "da3-base",
+        "vggt-1b"
+      ],
+      "arms": {
+        "primary": "u-blox receiver_lla displacement (v5 unchanged; Claim-1 scope test)",
+        "secondary": [
+          "u-blox receiver_pvt Doppler speed",
+          "u-blox receiver_lla altitude (GT-free nadir up-axis)"
+        ]
+      },
+      "relation_to_claim1": "separate site-replication experiment; NOT a v6; v5 not rescored; can only restate or add to Claim-1 caveat 2",
+      "authorized_by_user": "2026-10-01 ('HKairport_GNSS02 + 03', 'Speed + altitude')",
+      "prereview": "docs/SITE_REPLICATION_R1_PREFREEZE_REVIEW.md (FIX REQUIRED -> 2 MAJOR + MINOR 1,2,4,5,7,8,9 fixed before freeze; MINOR 3 resolved by contract status wording)",
+      "code_pins": {
+        "path": "artifacts/site_replication_r1_freeze_pins.json",
+        "sha256": "209467d9ed2262154a68d1efdf8c8110cfbeaaabdedcd38d11a308a38b9279da",
+        "n_files": 81,
+        "grounder_sha256": "227e1353b500920b3b9cee88a46fae87a1bf907069486ef6bcbb4cb779e7ff30"
+      },
+      "log": "docs/SITE_REPLICATION_R1_LOG.md",
+      "tests_at_freeze": "316 passed (51 R1)",
+      "adjudication": "docs/SITE_REPLICATION_R1_ADJUDICATION.md",
+      "reviews": {
+        "A_integrity": "docs/SITE_REPLICATION_R1_REVIEW_A_INTEGRITY.md (PASS WITH CAVEATS)",
+        "BC_interpretation": "docs/SITE_REPLICATION_R1_REVIEW_BC_INTERPRETATION.md (GATE R1-12 CONDITIONAL YES)"
+      },
+      "verdicts": {
+        "primary": "PRIMARY_REPLICATED",
+        "speed_doppler": "REPLICATED (secondary; not independent of displacement)",
+        "altitude_ublox": "REPLICATED (secondary; near-vertical windows only)"
+      },
+      "n_test": 3,
+      "test_window_medians_se3_ate_naive_m": {
+        "da3-base": {
+          "grounded": 2.095,
+          "oracle": 2.042,
+          "g_over_o": 1.026
+        },
+        "vggt-1b": {
+          "grounded": 2.265,
+          "oracle": 2.142,
+          "g_over_o": 1.058
+        }
+      },
+      "scale_error_vs_ate_optimal_pct": {
+        "da3-base": [
+          2.7,
+          1.5,
+          -3.8
+        ],
+        "vggt-1b": [
+          1.4,
+          2.4,
+          -0.8
+        ]
+      },
+      "negative_window_disclosed": "DA3 validation HKairport_GNSS02 t368: Sim(3) floor 16.8 m (18.8% of path), grounded 18.8 m; VGGT 1.86 m",
+      "effect_on_claim1": "caveat 2 restated (two sites, 5 flights, two consecutive days, n=3 at airfield, site seen in v1); claim level and wording unchanged; caveats 1,3-11 verbatim",
+      "result_shas": {
+        "r1_results.json": "1a2d14ec1f2447e632c29a753901113f3c75cd54e4f631d6f697f2b7cdd694c0",
+        "SCORING_RECEIPT.json": "f623476f66120f64a229565bb562e59eeafe0008a27b7ac64de25930107eabee"
+      },
+      "replay": "refused",
+      "scoring_date": "2026-10-01",
+      "post_scoring_test_fix": "tests/test_site_replication_r1_stage1.py::test_refusals_rerun_unregistered_real_out_and_tampered_bag now uses an empty temp registry (stale post-freeze assumption; test-only, not a pinned file); 316 passed"
+    }
+  ]
+}
